@@ -76,10 +76,14 @@ integration tests. After validation succeeds, pushes to `main` and version tags 
 publish the API image to `ghcr.io/wondu-em/wallet-bet-and-settlement-service`. The default branch
 also publishes the `latest` tag; commits and releases receive SHA and ref tags.
 
-The workflow uses the automatically provided `GITHUB_TOKEN`; enable read/write Actions
-permissions for packages in the repository settings if publishing is denied. The image publication
-is the CD handoff point: deploying it to a server or hosting provider requires a target-specific
-deployment configuration and credentials, which are intentionally not assumed here.
+Set the repository Actions secret `CI_POSTGRES_PASSWORD` under **Settings → Secrets and variables
+→ Actions**. The PostgreSQL service and test connection both read this secret. If it is unavailable
+(for example, on a pull request from a fork), the workflow generates a run-specific password for
+its temporary PostgreSQL service. GHCR authentication uses the automatically provided
+`GITHUB_TOKEN`; enable read/write Actions permissions for packages in repository settings if
+publishing is denied. The image publication is the CD handoff point: deploying it to a server or
+hosting provider requires target-specific configuration and credentials, which are intentionally
+not assumed here.
 
 ## API overview
 
