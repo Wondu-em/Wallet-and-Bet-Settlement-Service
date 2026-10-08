@@ -6,7 +6,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Wallet.IntegrationTests;
 
-public class LedgerServiceTests(PostgresFixture fx) : IClassFixture<PostgresFixture>
+[Collection("PostgreSQL integration")]
+public class LedgerServiceTests(PostgresFixture fx)
 {
     [Fact]
     public async Task Deposit_increases_balance_and_matches_ledger()

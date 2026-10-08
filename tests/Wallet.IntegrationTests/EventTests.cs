@@ -5,7 +5,8 @@ using Xunit;
 
 namespace Wallet.IntegrationTests;
 
-public class EventTests(PostgresFixture fx) : IClassFixture<PostgresFixture>
+[Collection("PostgreSQL integration")]
+public class EventTests(PostgresFixture fx)
 {
     private Task<EventDto> CreateAsync(params OutcomeInput[] outcomes)
     {

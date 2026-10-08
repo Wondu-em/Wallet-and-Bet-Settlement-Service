@@ -45,8 +45,8 @@ builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IBettingService, BettingService>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
-var webhookSecret = builder.Configuration["Webhook:Secret"] ?? "";
-builder.Services.AddSingleton(new DepositWebhookSignatureVerifier(webhookSecret));
+builder.Services.AddSingleton(sp => new DepositWebhookSignatureVerifier(
+    sp.GetRequiredService<IConfiguration>()["Webhook:Secret"] ?? ""));
 
 // ---------- JWT ----------
 var jwt = new JwtOptions
@@ -139,8 +139,11 @@ builder.Services.AddSwaggerGen(options =>
         Title = "Wallet & Bet Settlement API",
         Version = "v1",
         Description = "Play-money ETB wallet, fixed-odds betting and settlement. " +
-                      "State-changing endpoints require an Idempotency-Key header."
+                      "Endpoints requiring an Idempotency-Key are marked individually. " +
+                      "The deposit webhook is authenticated with HMAC rather than JWT."
     });
+
+    options.OperationFilter<ApiDocumentationOperationFilter>();
 
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -148,11 +151,6 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "bearer",
         BearerFormat = "JWT",
         Description = "Paste only the token from /auth/login (no 'Bearer ' prefix)."
-    });
-
-    options.AddSecurityRequirement(document => new OpenApiSecurityRequirement
-    {
-        [new OpenApiSecuritySchemeReference("Bearer", document)] = new List<string>()
     });
 });
 var app = builder.Build();

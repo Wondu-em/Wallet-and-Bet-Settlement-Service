@@ -11,7 +11,8 @@ using static Wallet.IntegrationTests.SettlementHelpers;
 
 namespace Wallet.IntegrationTests;
 
-public class SettlementTests(PostgresFixture fx) : IClassFixture<PostgresFixture>
+[Collection("PostgreSQL integration")]
+public class SettlementTests(PostgresFixture fx)
 {
     private static readonly Guid Admin = Guid.NewGuid();
 

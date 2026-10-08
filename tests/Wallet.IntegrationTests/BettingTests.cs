@@ -6,7 +6,8 @@ using Xunit;
 
 namespace Wallet.IntegrationTests;
 
-public class BettingTests(PostgresFixture fx) : IClassFixture<PostgresFixture>
+[Collection("PostgreSQL integration")]
+public class BettingTests(PostgresFixture fx)
 {
     [Fact]
     public async Task Placing_a_bet_debits_wallet_credits_escrow_and_records_everything()

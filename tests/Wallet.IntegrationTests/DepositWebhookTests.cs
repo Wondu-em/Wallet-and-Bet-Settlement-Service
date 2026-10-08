@@ -14,7 +14,8 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Wallet.IntegrationTests;
 
-public class DepositWebhookTests(PostgresFixture fx) : IClassFixture<PostgresFixture>
+[Collection("PostgreSQL integration")]
+public class DepositWebhookTests(PostgresFixture fx)
 {
     private const string Endpoint = "POST /webhooks/deposit";
 

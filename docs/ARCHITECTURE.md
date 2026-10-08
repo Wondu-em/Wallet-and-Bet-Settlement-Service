@@ -101,7 +101,7 @@ flowchart TB
 │   └── Wallet.Infrastructure/   # EF Core DbContext, migrations, ledger, idempotency, background jobs
 ├── tests/
 │   ├── Wallet.UnitTests/        # Money/odds math, state machines, HMAC verification
-│   └── Wallet.IntegrationTests/ # Testcontainers Postgres + WebApplicationFactory
+│   └── Wallet.IntegrationTests/ # PostgreSQL fixture + WebApplicationFactory
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   └── DESIGN.md
@@ -526,8 +526,8 @@ Terminal states are never left. A late or duplicate message that would move a de
 | `POST /webhooks/deposit` | HMAC | **Yes** (`Idempotency-Key` and provider event id) | Deposit confirmation |
 
 Conventions:
-- Errors use Problem Details. Common codes: `400` validation / missing key, `401` bad auth or signature, `402`-style insufficient funds mapped to `409` or `422` (choose one and document it), `403` wrong role, `404`, `409` state conflict, `422` idempotency payload mismatch, `429` rate limited.
-- OpenAPI/Swagger documents the JWT scheme and the `Idempotency-Key` header.
+- Errors use Problem Details. Common codes: `400` validation / missing key, `401` bad auth or signature, `403` wrong role, `404`, `409` state conflict, `422` insufficient funds or idempotency payload mismatch, `429` rate limited.
+- OpenAPI/Swagger documents JWT only for protected operations, `Idempotency-Key` on endpoints that require it, and the timestamp/signature headers on the webhook.
 
 ---
 
@@ -566,7 +566,7 @@ flowchart LR
 | **Migrations** | Applied automatically by the API at startup. |
 | **Seeding** | System accounts (`House`, `ExternalClearing`) and an admin user (credentials from environment variables). |
 | **Configuration** | Environment variables: connection string, JWT key and issuer, webhook secret, rate-limit settings. Compose includes local-only demo defaults; override them before use outside a local development machine. |
-| **CI (bonus)** | GitHub Actions: restore, build, test (Testcontainers), build Docker image. |
+| **CI (bonus)** | GitHub Actions: restore, build, test against PostgreSQL, build Docker image. |
 
 Run the local stack from the repository root with `docker compose up --build`. The API is available
 at `http://localhost:8080` and Swagger at `/swagger`; PostgreSQL is exposed only on localhost at
@@ -580,7 +580,10 @@ database volume and all data stored in it.
 
 ## 13. Testing Strategy
 
-Integration tests run against a **real PostgreSQL** (Testcontainers) through `WebApplicationFactory`, because locking and constraint behaviour cannot be faked.
+Integration tests run against a **real PostgreSQL** database created by `PostgresFixture`
+(`TEST_PG_ADMIN`, defaulting to local PostgreSQL). Service-level tests exercise database locking
+and constraints directly; `WebApplicationFactory` tests cover the HTTP pipeline, authentication,
+authorisation, and the signed webhook endpoint. Docker is not required to run the test suite.
 
 | Required test | Scenario | Assertions |
 |---|---|---|

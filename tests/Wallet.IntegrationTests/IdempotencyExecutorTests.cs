@@ -7,7 +7,8 @@ using Xunit;
 
 namespace Wallet.IntegrationTests;
 
-public class IdempotencyExecutorTests(PostgresFixture fx) : IClassFixture<PostgresFixture>
+[Collection("PostgreSQL integration")]
+public class IdempotencyExecutorTests(PostgresFixture fx)
 {
     private const string Endpoint = "POST /wallet/deposit";
 
