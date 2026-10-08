@@ -1,42 +1,31 @@
+version: '3.8'
+
 services:
-  db:
+  postgres:
     image: postgres:17
+    container_name: wallet-postgres
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-walletbet}
-      POSTGRES_USER: ${POSTGRES_USER:-wallet}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wallet-local-only}
+      POSTGRES_DB: postgres
+      POSTGRES_USER: wallet
+      POSTGRES_PASSWORD: wallet_dev_password
     ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      test: ["CMD-SHELL", "pg_isready -U wallet -d postgres"]
       interval: 5s
       timeout: 5s
-      retries: 10
-      start_period: 10s
-    restart: unless-stopped
+      retries: 5
 
-  api:
+  wallet-api:
     build:
       context: .
       dockerfile: Dockerfile
-    depends_on:
-      db:
-        condition: service_healthy
+    container_name: wallet-api
     environment:
-      ASPNETCORE_ENVIRONMENT: Development
-      ASPNETCORE_HTTP_PORTS: 8080
-      ConnectionStrings__Default: "Host=db;Port=5432;Database=${POSTGRES_DB:-walletbet};Username=${POSTGRES_USER:-wallet};Password=${POSTGRES_PASSWORD:-wallet-local-only}"
-      Jwt__Key: ${JWT_KEY:-local-development-jwt-key-not-for-production-32chars}
-      Jwt__Issuer: wallet-bet-api
-      Jwt__Audience: wallet-bet-clients
-      Webhook__Secret: ${WEBHOOK_SECRET:-local-development-webhook-secret-not-for-production}
-      Admin__Email: ${ADMIN_EMAIL:-admin@example.com}
-      Admin__Password: ${ADMIN_PASSWORD:-ChangeMe123!}
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=postgres;Username=wallet;Password=wallet_dev_password
     ports:
-      - "127.0.0.1:8080:8080"
-    restart: unless-stopped
-
-volumes:
-  pgdata:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
