@@ -1,0 +1,96 @@
+# Phase 4 manual tests. Set @host to the URL printed by `dotnet run`.
+# Needs the admin from your user-secrets (admin@example.com / ChangeMe123!) and alice@example.com from Phase 3.
+@host = http://localhost:5103
+
+### Admin login
+# @name adminLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@example.com", "password": "ChangeMe123!" }
+
+###
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+### Alice login
+# @name aliceLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "Passw0rd!123" }
+
+###
+@aliceToken = {{aliceLogin.response.body.accessToken}}
+
+### Admin creates an event (odds are decimal, e.g. 2.50)
+# @name createEvent
+POST {{host}}/admin/events
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "title": "Arsenal vs Chelsea",
+  "outcomes": [
+    { "name": "Arsenal", "odds": 2.50 },
+    { "name": "Draw",    "odds": 3.20 },
+    { "name": "Chelsea", "odds": 2.80 }
+  ]
+}
+
+###
+@eventId = {{createEvent.response.body.id}}
+@outcomeId = {{createEvent.response.body.$.outcomes[0].id}}
+
+### A normal user must NOT be able to create events => 403
+POST {{host}}/admin/events
+Authorization: Bearer {{aliceToken}}
+Content-Type: application/json
+
+{ "title": "Nope", "outcomes": [ { "name": "A", "odds": 2.0 }, { "name": "B", "odds": 2.0 } ] }
+
+### Invalid event (1 outcome) => 400 with field errors
+POST {{host}}/admin/events
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{ "title": "Bad", "outcomes": [ { "name": "A", "odds": 2.0 } ] }
+
+### Alice browses open events
+GET {{host}}/events?status=Open
+Authorization: Bearer {{aliceToken}}
+
+### Alice bets 100.00 ETB (10000). Send twice: second reply has Idempotent-Replayed: true
+POST {{host}}/bets
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: bet-0006
+Content-Type: application/json
+
+{ "outcomeId": "{{outcomeId}}", "stake": 10000 }
+
+### Alice's bets
+GET {{host}}/bets
+Authorization: Bearer {{aliceToken}}
+
+### Wallet after the bet
+GET {{host}}/wallet
+Authorization: Bearer {{aliceToken}}
+
+### Admin closes the event (safe to send twice)
+POST {{host}}/admin/events/{{eventId}}/close
+Authorization: Bearer {{adminToken}}
+
+### Bet after close => 409 conflict
+POST {{host}}/bets
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: bet-0002
+Content-Type: application/json
+
+{ "outcomeId": "{{outcomeId}}", "stake": 10000 }
+
+### Admin cannot place bets (no wallet / wrong role) => 403
+POST {{host}}/bets
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: bet-admin-1
+Content-Type: application/json
+
+{ "outcomeId": "{{outcomeId}}", "stake": 100 }

@@ -1,6 +1,10 @@
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -9,6 +13,8 @@ using Wallet.Api.Security;
 using Wallet.Api.Web;
 using Wallet.Application.Audit;
 using Wallet.Application.Auth;
+using Wallet.Application.Bets;
+using Wallet.Application.Events;
 using Wallet.Application.Idempotency;
 using Wallet.Application.Ledger;
 using Wallet.Application.Wallets;
@@ -31,6 +37,8 @@ builder.Services.AddScoped<IIdempotencyExecutor, IdempotencyExecutor>();
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<IBettingService, BettingService>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
 
 // ---------- JWT ----------
@@ -73,6 +81,45 @@ builder.Services.AddAuthorization(o =>
     o.AddPolicy("Admin", p => p.RequireRole("Admin"));
 });
 
+// ---------- Rate limiting (bet placement, per user) ----------
+var betPermits = builder.Configuration.GetValue("RateLimit:Bets:PermitLimit", 10);
+var betWindowSeconds = builder.Configuration.GetValue("RateLimit:Bets:WindowSeconds", 1);
+
+builder.Services.AddRateLimiter(o =>
+{
+    o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+    o.AddPolicy("bets", httpContext =>
+    {
+        var key = httpContext.User.FindFirst("sub")?.Value
+                  ?? httpContext.Connection.RemoteIpAddress?.ToString()
+                  ?? "anonymous";
+        return RateLimitPartition.GetFixedWindowLimiter(key, _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = betPermits,
+            Window = TimeSpan.FromSeconds(betWindowSeconds),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        });
+    });
+
+    o.OnRejected = async (ctx, ct) =>
+    {
+        if (ctx.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+            ctx.HttpContext.Response.Headers["Retry-After"] = ((int)Math.Ceiling(retryAfter.TotalSeconds)).ToString();
+
+        ctx.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        var problem = new ProblemDetails
+        {
+            Status = 429,
+            Title = "Too many requests",
+            Detail = "Bet placement rate limit exceeded. Retry shortly."
+        };
+        problem.Extensions["code"] = "rate_limited";
+        await ctx.HttpContext.Response.WriteAsJsonAsync(problem, (JsonSerializerOptions?)null, "application/problem+json", ct);
+    };
+});
+
 // ---------- HTTP plumbing ----------
 builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddProblemDetails();
@@ -92,6 +139,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 // ---------- Migrate & seed ----------
 await using (var scope = app.Services.CreateAsyncScope())
@@ -112,6 +160,9 @@ app.MapGet("/health", async (WalletDbContext db) =>
 
 app.MapAuthEndpoints();
 app.MapWalletEndpoints();
+app.MapEventEndpoints();
+app.MapAdminEventEndpoints();
+app.MapBetEndpoints();
 
 app.Run();
 

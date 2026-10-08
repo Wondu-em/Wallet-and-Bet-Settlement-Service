@@ -28,7 +28,7 @@ Authorization: Bearer {{token}}
 ### Deposit 500.00 ETB (50000 minor units). Send it twice: the second reply has Idempotent-Replayed: true
 POST {{host}}/wallet/deposit
 Authorization: Bearer {{token}}
-Idempotency-Key: dep-0001
+Idempotency-Key: dep-0002
 Content-Type: application/json
 
 { "amount": 50000 }
