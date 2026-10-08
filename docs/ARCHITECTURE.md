@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Status** | Proposed |
-| **Stack** | C# / .NET (LTS), ASP.NET Core, EF Core + Npgsql, PostgreSQL 16, Docker |
+| **Stack** | C# / .NET (LTS), ASP.NET Core, EF Core + Npgsql, PostgreSQL 17, Docker |
 | **Scope** | Play-money (ETB) wallet, fixed-odds betting, settlement, simulated payment webhook |
 | **Primary goal** | Money-handling correctness under retries, failures and concurrency |
 
@@ -425,6 +425,13 @@ Any failure mid-loop rolls back the entire settlement. Void follows the same sha
 
 ### 8.3 Inbound webhook
 
+The JSON body contains `providerEventId`, `providerReference`, `userId`, `amount` (ETB minor
+units), and `status` (`Pending`, `Confirmed`, or `Failed`). The provider sends `Idempotency-Key`,
+`X-Timestamp` (Unix seconds), and `X-Signature` (hex HMAC-SHA256 of the UTF-8 bytes of
+`timestamp + "." + rawBody`). The timestamp must be within five minutes of the server clock.
+The idempotency key protects request retries; the unique provider event id independently protects
+against duplicate deliveries sent with different keys.
+
 ```mermaid
 sequenceDiagram
     autonumber
@@ -516,7 +523,7 @@ Terminal states are never left. A late or duplicate message that would move a de
 | `POST /admin/events/{id}/close` | Admin | Safe to repeat | Close for betting |
 | `POST /admin/events/{id}/settle` | Admin | **Yes** | Declare winning outcome |
 | `POST /admin/events/{id}/void` | Admin | **Yes** | Refund all stakes |
-| `POST /webhooks/deposit` | HMAC | **Yes** (by provider event id) | Deposit confirmation |
+| `POST /webhooks/deposit` | HMAC | **Yes** (`Idempotency-Key` and provider event id) | Deposit confirmation |
 
 Conventions:
 - Errors use Problem Details. Common codes: `400` validation / missing key, `401` bad auth or signature, `402`-style insufficient funds mapped to `409` or `422` (choose one and document it), `403` wrong role, `404`, `409` state conflict, `422` idempotency payload mismatch, `429` rate limited.
@@ -545,7 +552,7 @@ flowchart LR
         direction LR
         subgraph compose["docker-compose"]
             direction TB
-            PG[("postgres:16<br/>volume: pgdata<br/>healthcheck: pg_isready")]
+            PG[("postgres:17<br/>volume: pgdata<br/>healthcheck: pg_isready")]
             API["api<br/>ASP.NET Core<br/>ports: 8080"]
             API -- "depends_on: service_healthy" --> PG
         end
@@ -555,11 +562,19 @@ flowchart LR
 
 | Concern | Decision |
 |---|---|
-| **Startup** | `docker-compose up` builds the API image (multi-stage) and starts Postgres, then the API. |
-| **Migrations** | Applied automatically at API startup, guarded by a Postgres advisory lock so multiple replicas do not race. |
+| **Startup** | `docker compose up --build` builds the API image (multi-stage) and starts Postgres, then the API after its health check succeeds. |
+| **Migrations** | Applied automatically by the API at startup. |
 | **Seeding** | System accounts (`House`, `ExternalClearing`) and an admin user (credentials from environment variables). |
-| **Configuration** | Environment variables: connection string, JWT key and issuer, webhook secret, rate-limit settings. Dev defaults are documented in the README; none are production secrets. |
+| **Configuration** | Environment variables: connection string, JWT key and issuer, webhook secret, rate-limit settings. Compose includes local-only demo defaults; override them before use outside a local development machine. |
 | **CI (bonus)** | GitHub Actions: restore, build, test (Testcontainers), build Docker image. |
+
+Run the local stack from the repository root with `docker compose up --build`. The API is available
+at `http://localhost:8080` and Swagger at `/swagger`; PostgreSQL is exposed only on localhost at
+port 5432 and its data persists in the `pgdata` volume. Set `POSTGRES_PASSWORD`, `JWT_KEY`,
+`WEBHOOK_SECRET`, and optionally `ADMIN_EMAIL` / `ADMIN_PASSWORD` in the environment to override
+the compose defaults. The defaults are for local development only and must not be used in production.
+Use `docker compose down` to stop the services; `docker compose down -v` also removes the local
+database volume and all data stored in it.
 
 ---
 

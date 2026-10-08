@@ -18,7 +18,9 @@ using Wallet.Application.Bets;
 using Wallet.Application.Events;
 using Wallet.Application.Idempotency;
 using Wallet.Application.Ledger;
+using Wallet.Application.Settlement;
 using Wallet.Application.Wallets;
+using Wallet.Application.Webhooks;
 using Wallet.Infrastructure.Audit;
 using Wallet.Infrastructure.Idempotency;
 using Wallet.Infrastructure.Ledger;
@@ -31,16 +33,20 @@ var builder = WebApplication.CreateBuilder(args);
 // ---------- Database & services ----------
 builder.Services.AddDbContext<WalletDbContext>(o =>
     o.UseNpgsql(builder.Configuration.GetConnectionString("Default")));
-
+builder.Services.AddScoped<ISettlementService, SettlementService>();
 builder.Services.AddScoped<ILedgerService, LedgerService>();
 builder.Services.AddScoped<ITransactionRunner, TransactionRunner>();
 builder.Services.AddScoped<IIdempotencyExecutor, IdempotencyExecutor>();
 builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IWalletService, WalletService>();
+builder.Services.AddScoped<IDepositWebhookService, DepositWebhookService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IBettingService, BettingService>();
 builder.Services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+
+var webhookSecret = builder.Configuration["Webhook:Secret"] ?? "";
+builder.Services.AddSingleton(new DepositWebhookSignatureVerifier(webhookSecret));
 
 // ---------- JWT ----------
 var jwt = new JwtOptions
@@ -185,7 +191,8 @@ app.MapWalletEndpoints();
 app.MapEventEndpoints();
 app.MapAdminEventEndpoints();
 app.MapBetEndpoints();
-
+app.MapAdminSettlementEndpoints();
+app.MapDepositWebhookEndpoints();
 app.Run();
 
 public partial class Program;

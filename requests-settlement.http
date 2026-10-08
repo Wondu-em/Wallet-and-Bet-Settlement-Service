@@ -1,0 +1,185 @@
+# Phase 5 manual tests. Set @host to the URL printed by `dotnet run`.
+# Needs the admin from your user-secrets and alice@example.com (with some balance) from earlier phases.
+@host = http://localhost:5103
+
+### Admin login
+# @name adminLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "admin@example.com", "password": "ChangeMe123!" }
+
+###
+@adminToken = {{adminLogin.response.body.accessToken}}
+
+### Alice login
+# @name aliceLogin
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "Passw0rd!123" }
+
+###
+@aliceToken = {{aliceLogin.response.body.accessToken}}
+
+### Make sure Alice has money (500.00 ETB). Change the key if you already used it.
+POST {{host}}/wallet/deposit
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: settle-test-deposit-1
+Content-Type: application/json
+
+{ "amount": 50000 }
+
+### ---------- EVENT 1: will be SETTLED ----------
+
+### Create event 1 (outcomes come back sorted by name: Arsenal, Chelsea, Draw)
+# @name createEvent
+POST {{host}}/admin/events
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "title": "Settle me",
+  "outcomes": [
+    { "name": "Arsenal", "odds": 2.50 },
+    { "name": "Chelsea", "odds": 2.80 },
+    { "name": "Draw",    "odds": 3.20 }
+  ]
+}
+
+###
+@eventId = {{createEvent.response.body.id}}
+@arsenalId = {{createEvent.response.body.$.outcomes[0].id}}
+@chelseaId = {{createEvent.response.body.$.outcomes[1].id}}
+
+### Alice bets 100.00 ETB on Arsenal (10000)
+POST {{host}}/bets
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: settle-test-bet-{{eventId}}
+Content-Type: application/json
+
+{ "outcomeId": "{{arsenalId}}", "stake": 10000 }
+
+### Settling an OPEN event is refused => 409 "must be closed"
+POST {{host}}/admin/events/{{eventId}}/settle
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: settle-open-{{eventId}}
+Content-Type: application/json
+
+{ "winningOutcomeId": "{{arsenalId}}" }
+
+### Close the event
+POST {{host}}/admin/events/{{eventId}}/close
+Authorization: Bearer {{adminToken}}
+
+### SETTLE: Arsenal wins. Alice should receive 250.00 ETB (25000)
+POST {{host}}/admin/events/{{eventId}}/settle
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: settle-{{eventId}}
+Content-Type: application/json
+
+{ "winningOutcomeId": "{{arsenalId}}" }
+
+### Send the SAME request again => same response, header Idempotent-Replayed: true, nobody is paid twice
+POST {{host}}/admin/events/{{eventId}}/settle
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: settle-{{eventId}}
+Content-Type: application/json
+
+{ "winningOutcomeId": "{{arsenalId}}" }
+
+### Settle with a NEW key => 409 "already been settled"
+POST {{host}}/admin/events/{{eventId}}/settle
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: settle-again-{{eventId}}
+Content-Type: application/json
+
+{ "winningOutcomeId": "{{chelseaId}}" }
+
+### Void an already-settled event => 409
+POST {{host}}/admin/events/{{eventId}}/void
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: void-after-settle-{{eventId}}
+Content-Type: application/json
+
+{ "reason": "too late" }
+
+### Alice's bets: status Won, payout 25000
+GET {{host}}/bets
+Authorization: Bearer {{aliceToken}}
+
+### Alice's wallet and history (stake out, payout in)
+GET {{host}}/wallet
+Authorization: Bearer {{aliceToken}}
+
+###
+GET {{host}}/wallet/transactions
+Authorization: Bearer {{aliceToken}}
+
+### A normal user cannot settle => 403
+POST {{host}}/admin/events/{{eventId}}/settle
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: nope-1
+Content-Type: application/json
+
+{ "winningOutcomeId": "{{arsenalId}}" }
+
+### ---------- EVENT 2: will be VOIDED ----------
+
+### Create event 2
+# @name createEvent2
+POST {{host}}/admin/events
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "title": "Void me",
+  "outcomes": [
+    { "name": "Home", "odds": 1.90 },
+    { "name": "Away", "odds": 2.10 }
+  ]
+}
+
+###
+@eventId2 = {{createEvent2.response.body.id}}
+@homeId2 = {{createEvent2.response.body.$.outcomes[1].id}}
+
+### Alice bets 50.00 ETB (5000)
+POST {{host}}/bets
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: void-test-bet-{{eventId2}}
+Content-Type: application/json
+
+{ "outcomeId": "{{homeId2}}", "stake": 5000 }
+
+### VOID (works on Open or Closed events): stake is refunded
+POST {{host}}/admin/events/{{eventId2}}/void
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: void-{{eventId2}}
+Content-Type: application/json
+
+{ "reason": "match abandoned" }
+
+### Same void request again => replayed, not refunded twice
+POST {{host}}/admin/events/{{eventId2}}/void
+Authorization: Bearer {{adminToken}}
+Idempotency-Key: void-{{eventId2}}
+Content-Type: application/json
+
+{ "reason": "match abandoned" }
+
+### Betting on a voided event => 409
+POST {{host}}/bets
+Authorization: Bearer {{aliceToken}}
+Idempotency-Key: after-void-{{eventId2}}
+Content-Type: application/json
+
+{ "outcomeId": "{{homeId2}}", "stake": 100 }
+
+### Alice's bets (Refunded) and wallet (stake returned)
+GET {{host}}/bets?status=Refunded
+Authorization: Bearer {{aliceToken}}
+
+###
+GET {{host}}/wallet
+Authorization: Bearer {{aliceToken}}
