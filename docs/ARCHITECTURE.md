@@ -566,7 +566,7 @@ flowchart LR
 | **Migrations** | Applied automatically by the API at startup. |
 | **Seeding** | System accounts (`House`, `ExternalClearing`) and an admin user (credentials from environment variables). |
 | **Configuration** | Environment variables: connection string, JWT key and issuer, webhook secret, rate-limit settings. Compose includes local-only demo defaults; override them before use outside a local development machine. |
-| **CI (bonus)** | GitHub Actions: restore, build, test against PostgreSQL, build Docker image. |
+| **CI/CD (bonus)** | GitHub Actions: restore, build, run tests against PostgreSQL, and publish the validated API image to GHCR on main and version-tag pushes. |
 
 Run the local stack from the repository root with `docker compose up --build`. The API is available
 at `http://localhost:8080` and Swagger at `/swagger`; PostgreSQL is exposed only on localhost at

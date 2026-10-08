@@ -4,6 +4,8 @@ A .NET 10 and PostgreSQL backend for a play-money ETB wallet and fixed-odds bett
 wallet deposits and withdrawals, event and bet management, settlement and voiding, and a signed
 simulated deposit webhook. No real money or payment provider is involved.
 
+[![CI/CD](https://github.com/Wondu-em/Wallet_Bet_and_Settlement_Service/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Wondu-em/Wallet_Bet_and_Settlement_Service/actions/workflows/ci-cd.yml)
+
 ## Requirements
 
 - .NET 10 SDK
@@ -65,6 +67,19 @@ dotnet test WalletBet.slnx
 
 The integration-test collection is serialized because it creates and drops temporary databases.
 Unit tests do not need PostgreSQL.
+
+## Continuous integration and image publishing
+
+The GitHub Actions workflow runs on pull requests targeting `main`, pushes to `main`, and manual
+dispatch. It provisions PostgreSQL 17, restores and builds the solution, and runs all unit and
+integration tests. After validation succeeds, pushes to `main` and version tags matching `v*`
+publish the API image to `ghcr.io/wondu-em/wallet-bet-and-settlement-service`. The default branch
+also publishes the `latest` tag; commits and releases receive SHA and ref tags.
+
+The workflow uses the automatically provided `GITHUB_TOKEN`; enable read/write Actions
+permissions for packages in the repository settings if publishing is denied. The image publication
+is the CD handoff point: deploying it to a server or hosting provider requires a target-specific
+deployment configuration and credentials, which are intentionally not assumed here.
 
 ## API overview
 
