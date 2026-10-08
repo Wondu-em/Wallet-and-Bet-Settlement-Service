@@ -28,7 +28,7 @@ jobs:
         env:
           POSTGRES_DB: postgres
           POSTGRES_USER: wallet
-          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || format('wallet-ci-{0}-{1}', github.run_id, github.run_attempt) }}
+          POSTGRES_PASSWORD: ${{ secrets.CI_POSTGRES_PASSWORD || 'wallet_ci_password_123' }}
         ports:
           - 5432:5432
         options: >-
@@ -37,7 +37,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      TEST_PG_ADMIN: Host=localhost;Port=5432;Database=postgres;Username=wallet;Password=${{ secrets.CI_POSTGRES_PASSWORD || format('wallet-ci-{0}-{1}', github.run_id, github.run_attempt) }}
+      TEST_PG_ADMIN: Host=localhost;Port=5432;Database=postgres;Username=wallet;Password=${{ secrets.CI_POSTGRES_PASSWORD || 'wallet_ci_password_123' }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -78,7 +78,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Generate image metadata
         id: meta
