@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Wallet.Api.Security;
 using Wallet.Api.Web;
 using Wallet.Application.Idempotency;
@@ -18,7 +19,9 @@ public static class WalletEndpoints
             => Results.Ok(await wallet.GetBalanceAsync(principal.GetUserId(), ct)));
 
         group.MapPost("/deposit", async (
-            AmountRequest req, HttpContext http, ClaimsPrincipal principal,
+            AmountRequest req,
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,   // shown in Swagger; read by IdempotencyHttp
+            HttpContext http, ClaimsPrincipal principal,
             IIdempotencyExecutor idempotency, IWalletService wallet) =>
         {
             var userId = principal.GetUserId();
@@ -30,7 +33,9 @@ public static class WalletEndpoints
         });
 
         group.MapPost("/withdraw", async (
-            AmountRequest req, HttpContext http, ClaimsPrincipal principal,
+            AmountRequest req,
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+            HttpContext http, ClaimsPrincipal principal,
             IIdempotencyExecutor idempotency, IWalletService wallet) =>
         {
             var userId = principal.GetUserId();

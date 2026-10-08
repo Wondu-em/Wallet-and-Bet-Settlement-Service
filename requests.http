@@ -9,7 +9,7 @@ GET {{host}}/health
 POST {{host}}/auth/register
 Content-Type: application/json
 
-{ "email": "alice@example.com", "password": "Passw0rd!123" }
+{ "email": "alice@example.com1", "password": "Passw0rd!1231" }
 
 ### Login (named request, token reused below)
 # @name login

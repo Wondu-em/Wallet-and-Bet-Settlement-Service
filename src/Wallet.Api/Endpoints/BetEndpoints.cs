@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Microsoft.AspNetCore.Mvc;
 using Wallet.Api.Security;
 using Wallet.Api.Web;
 using Wallet.Application.Bets;
@@ -16,7 +17,9 @@ public static class BetEndpoints
         var group = app.MapGroup("/bets").WithTags("Bets").RequireAuthorization("User");
 
         group.MapPost("/", async (
-            PlaceBetRequest req, HttpContext http, ClaimsPrincipal principal,
+            PlaceBetRequest req,
+            [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,   // shown in Swagger; read by IdempotencyHttp
+            HttpContext http, ClaimsPrincipal principal,
             IIdempotencyExecutor idempotency, IBettingService betting) =>
         {
             var userId = principal.GetUserId();
