@@ -39,6 +39,9 @@ jobs:
 
     env:
       TEST_PG_ADMIN: Host=localhost;Port=5432;Database=postgres;Username=wallet;Password=wallet_ci_password_123
+      Jwt__Issuer: WalletApi
+      Jwt__Audience: WalletClients
+      Jwt__Key: ${{ secrets.JWT_KEY || 'CI_DEFAULT_FALLBACK_JWT_KEY_AT_LEAST_32_CHARS!' }}
 
     steps:
       - name: Check out repository
