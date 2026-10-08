@@ -1,0 +1,72 @@
+# Use with the VS Code "REST Client" extension.
+# Set @host to the URL printed by `dotnet run` (see Properties/launchSettings.json).
+@host = http://localhost:5103
+
+### Health
+GET {{host}}/health
+
+### Register a user
+POST {{host}}/auth/register
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "Passw0rd!123" }
+
+### Login (named request, token reused below)
+# @name login
+POST {{host}}/auth/login
+Content-Type: application/json
+
+{ "email": "alice@example.com", "password": "Passw0rd!123" }
+
+###
+@token = {{login.response.body.accessToken}}
+
+### Balance
+GET {{host}}/wallet
+Authorization: Bearer {{token}}
+
+### Deposit 500.00 ETB (50000 minor units). Send it twice: the second reply has Idempotent-Replayed: true
+POST {{host}}/wallet/deposit
+Authorization: Bearer {{token}}
+Idempotency-Key: dep-0001
+Content-Type: application/json
+
+{ "amount": 50000 }
+
+### Same key, different amount => 422 idempotency_key_reuse
+POST {{host}}/wallet/deposit
+Authorization: Bearer {{token}}
+Idempotency-Key: dep-0001
+Content-Type: application/json
+
+{ "amount": 99999 }
+
+### Withdraw 100.00 ETB
+POST {{host}}/wallet/withdraw
+Authorization: Bearer {{token}}
+Idempotency-Key: wd-0001
+Content-Type: application/json
+
+{ "amount": 10000 }
+
+### Withdraw more than the balance => 422 insufficient_funds
+POST {{host}}/wallet/withdraw
+Authorization: Bearer {{token}}
+Idempotency-Key: wd-0002
+Content-Type: application/json
+
+{ "amount": 99999999 }
+
+### Missing Idempotency-Key => 400
+POST {{host}}/wallet/deposit
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{ "amount": 100 }
+
+### Transaction history
+GET {{host}}/wallet/transactions?page=1&pageSize=20
+Authorization: Bearer {{token}}
+
+### No token => 401
+GET {{host}}/wallet
