@@ -81,9 +81,33 @@ Set the repository Actions secret `CI_POSTGRES_PASSWORD` under **Settings → Se
 (for example, on a pull request from a fork), the workflow generates a run-specific password for
 its temporary PostgreSQL service. GHCR authentication uses the automatically provided
 `GITHUB_TOKEN`; enable read/write Actions permissions for packages in repository settings if
-publishing is denied. The image publication is the CD handoff point: deploying it to a server or
-hosting provider requires target-specific configuration and credentials, which are intentionally
-not assumed here.
+publishing is denied.
+
+### Deploy to Render
+
+The workflow can trigger a Render deploy after tests pass and the `latest` image is published from
+`main`. To enable it:
+
+1. Create a Render PostgreSQL database and a Render Web Service in the same region.
+2. Create the service from the existing image
+   `ghcr.io/wondu-em/wallet-bet-and-settlement-service:latest`. If the GHCR package is private,
+   configure a Render registry credential using a GitHub token with `read:packages` access.
+3. Set the service's health check path to `/health` and configure these environment variables:
+   `ASPNETCORE_ENVIRONMENT=Production`, `ASPNETCORE_HTTP_PORTS=10000`,
+   `ConnectionStrings__Default` as an Npgsql connection string using the database's internal host,
+   database name, username, and password (for example,
+   `Host=<internal-host>;Port=5432;Database=<database>;Username=<user>;Password=<password>;SSL Mode=Require`),
+   `Jwt__Key` (at least 32 characters), `Webhook__Secret` (at least 32 bytes), `Admin__Email`,
+   and `Admin__Password`.
+4. In the Render service's **Settings**, create/copy its deploy hook URL. Add that URL to the
+   GitHub repository as the Actions secret `RENDER_DEPLOY_HOOK_URL`.
+5. Push changes to `main`. Once validation and image publishing succeed, GitHub Actions calls the
+   Render deploy hook. Version-tag pushes publish images but do not trigger this Render deployment.
+
+The Docker image listens on the port configured by `ASPNETCORE_HTTP_PORTS`; Render uses port
+`10000` here. The API applies pending database migrations and seeds the configured admin during
+startup. Keep database credentials, JWT keys, webhook secrets, and the deploy hook URL only in
+Render/GitHub secret settings, never in source control.
 
 ## API overview
 
