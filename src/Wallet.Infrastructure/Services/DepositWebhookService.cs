@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Wallet.Application;
 using Wallet.Application.Audit;
 using Wallet.Application.Ledger;
+using Wallet.Application.Outbox;
 using Wallet.Application.Webhooks;
 using Wallet.Domain;
 using Wallet.Infrastructure.Ledger;
@@ -14,7 +15,8 @@ namespace Wallet.Infrastructure.Services;
 public sealed class DepositWebhookService(
     WalletDbContext db,
     ILedgerService ledger,
-    IAuditWriter audit) : IDepositWebhookService
+    IAuditWriter audit,
+    IOutboxWriter outbox) : IDepositWebhookService
 {
     public async Task<DepositWebhookResult> ProcessDepositAsync(
         DepositWebhookRequest request,
@@ -116,6 +118,17 @@ public sealed class DepositWebhookService(
                SET result = {result}, processed_at = {DateTimeOffset.UtcNow}
              WHERE provider_event_id = {request.ProviderEventId}
             """, ct);
+        outbox.Add("deposit.provider_event.processed", new
+        {
+            request.ProviderEventId,
+            request.ProviderReference,
+            request.UserId,
+            request.Amount,
+            receivedStatus = request.Status,
+            resultingStatus = deposit.Status,
+            depositId = deposit.Id,
+            stateChanged
+        });
         await db.SaveChangesAsync(ct);
 
         return new DepositWebhookResult(deposit.ProviderReference, deposit.Status,

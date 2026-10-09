@@ -210,6 +210,11 @@ public class SettlementTests(PostgresFixture fx)
         Assert.Equal(EventStatus.Closed, (await check.Events.AsNoTracking().SingleAsync(e => e.Id == s.Event.Id)).Status);
         Assert.Equal(3, await check.Bets.CountAsync(b => b.EventId == s.Event.Id && b.Status == BetStatus.Placed));
         Assert.Equal(0, await CountPayoutTransactionsAsync(s.Event.Id));
+        var failedSettlementMessages = await check.OutboxMessages
+            .Where(m => m.Type == "event.settled")
+            .Select(m => m.Payload)
+            .ToListAsync();
+        Assert.DoesNotContain(failedSettlementMessages, payload => payload.Contains(s.Event.Id.ToString()));
 
         await AssertBalanceAsync(s.A.WalletId, 4_000);   // stakes still taken, nothing paid
         await AssertBalanceAsync(s.B.WalletId, 3_000);
@@ -221,6 +226,12 @@ public class SettlementTests(PostgresFixture fx)
         await using var retry = fx.CreateContext();
         var result = await Settlement(retry).SettleAsync(Admin, s.Event.Id, s.Home.Id);
         Assert.Equal(EventStatus.Settled, result.Status);
+        await using var settledCheck = fx.CreateContext();
+        var settledMessages = await settledCheck.OutboxMessages
+            .Where(m => m.Type == "event.settled")
+            .Select(m => m.Payload)
+            .ToListAsync();
+        Assert.Single(settledMessages, payload => payload.Contains(s.Event.Id.ToString()));
     }
 
     [Fact]

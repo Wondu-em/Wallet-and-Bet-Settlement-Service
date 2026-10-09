@@ -9,6 +9,7 @@ using Wallet.Domain;
 using Wallet.Infrastructure.Audit;
 using Wallet.Infrastructure.Idempotency;
 using Wallet.Infrastructure.Ledger;
+using Wallet.Infrastructure.Outbox;
 using Wallet.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,7 +28,7 @@ public class DepositWebhookTests(PostgresFixture fx)
         rawPayload ??= JsonSerializer.Serialize(request, AppJson.Options);
         await using var db = fx.CreateContext();
         var executor = new IdempotencyExecutor(db);
-        var service = new DepositWebhookService(db, new LedgerService(db), new AuditWriter(db));
+        var service = new DepositWebhookService(db, new LedgerService(db), new AuditWriter(db), new OutboxWriter(db));
         return await executor.ExecuteAsync(
             new IdempotencyRequest("webhook", Endpoint, idempotencyKey, Hash(rawPayload)),
             async ct => IdempotentResponse.Of(200,

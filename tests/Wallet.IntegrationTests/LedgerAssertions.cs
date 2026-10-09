@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Wallet.Domain;
 using Wallet.Infrastructure.Audit;
 using Wallet.Infrastructure.Ledger;
+using Wallet.Infrastructure.Outbox;
 using Wallet.Infrastructure.Persistence;
 using Wallet.Infrastructure.Services;
 using Xunit;
@@ -11,7 +12,7 @@ namespace Wallet.IntegrationTests;
 public static class SettlementHelpers
 {
     public static SettlementService Settlement(WalletDbContext db)
-        => new(db, new LedgerService(db), new TransactionRunner(db), new AuditWriter(db));
+        => new(db, new LedgerService(db), new TransactionRunner(db), new AuditWriter(db), new OutboxWriter(db));
 }
 
 public static class LedgerAssertions

@@ -4,6 +4,7 @@ using Wallet.Domain;
 using Wallet.Infrastructure.Audit;
 using Wallet.Infrastructure.Ledger;
 using Wallet.Infrastructure.Persistence;
+using Wallet.Infrastructure.Outbox;
 using Wallet.Infrastructure.Services;
 
 namespace Wallet.IntegrationTests;
@@ -12,10 +13,10 @@ namespace Wallet.IntegrationTests;
 public static class TestData
 {
     public static BettingService Betting(WalletDbContext db)
-        => new(db, new LedgerService(db), new TransactionRunner(db), new AuditWriter(db));
+        => new(db, new LedgerService(db), new TransactionRunner(db), new AuditWriter(db), new OutboxWriter(db));
 
     public static EventService Events(WalletDbContext db)
-        => new(db, new TransactionRunner(db), new AuditWriter(db));
+        => new(db, new TransactionRunner(db), new AuditWriter(db), new OutboxWriter(db));
 
     public static async Task<(Guid UserId, Guid WalletId)> CreateUserAsync(PostgresFixture fx, long balance = 0)
     {

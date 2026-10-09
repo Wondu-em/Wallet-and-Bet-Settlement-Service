@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Wallet.Application.Audit;
 using Wallet.Application.Bets;
 using Wallet.Application.Ledger;
+using Wallet.Application.Outbox;
 using Wallet.Application.Wallets;
 using Wallet.Domain;
 using Wallet.Infrastructure.Persistence;
@@ -12,7 +13,8 @@ public sealed class BettingService(
     WalletDbContext db,
     ILedgerService ledger,
     ITransactionRunner runner,
-    IAuditWriter audit) : IBettingService
+    IAuditWriter audit,
+    IOutboxWriter outbox) : IBettingService
 {
     public Task<PlacedBetDto> PlaceBetAsync(Guid userId, Guid outcomeId, long stake, CancellationToken ct = default)
         => runner.RunAsync(async token =>
@@ -53,6 +55,15 @@ public sealed class BettingService(
             });
             audit.Add(userId, "bet.place", "bet", bet.Id.ToString(),
                 new { bet.EventId, bet.OutcomeId, stake, bet.OddsBp });
+            outbox.Add("bet.placed", new
+            {
+                betId = bet.Id,
+                userId,
+                eventId = ev.Id,
+                outcomeId = outcome.Id,
+                stake,
+                oddsBp = bet.OddsBp
+            });
 
             // Locks wallet + escrow, rejects with InsufficientFundsException BEFORE anything is saved,
             // then writes the bet, history, audit and ledger entries together.

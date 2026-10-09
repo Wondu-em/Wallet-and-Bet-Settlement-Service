@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wallet.Application.Audit;
 using Wallet.Application.Ledger;
+using Wallet.Application.Outbox;
 using Wallet.Application.Settlement;
 using Wallet.Domain;
 using Wallet.Infrastructure.Persistence;
@@ -17,7 +18,8 @@ public sealed class SettlementService(
     WalletDbContext db,
     ILedgerService ledger,
     ITransactionRunner runner,
-    IAuditWriter audit) : ISettlementService
+    IAuditWriter audit,
+    IOutboxWriter outbox) : ISettlementService
 {
     public Task<SettlementResultDto> SettleAsync(
         Guid adminId, Guid eventId, Guid winningOutcomeId, CancellationToken ct = default)
@@ -81,6 +83,17 @@ public sealed class SettlementService(
             {
                 winningOutcomeId, winningBets = won, losingBets = lost, totalStaked, totalPaidOut = totalPaid, houseResult
             });
+            outbox.Add("event.settled", new
+            {
+                eventId = ev.Id,
+                adminId,
+                winningOutcomeId,
+                winningBets = won,
+                losingBets = lost,
+                totalStaked,
+                totalPaidOut = totalPaid,
+                houseResult
+            });
 
             await db.SaveChangesAsync(token);
 
@@ -126,6 +139,14 @@ public sealed class SettlementService(
             audit.Add(adminId, "event.void", "event", ev.Id.ToString(), new
             {
                 reason, betsRefunded = bets.Count, totalRefunded
+            });
+            outbox.Add("event.voided", new
+            {
+                eventId = ev.Id,
+                adminId,
+                reason,
+                betsRefunded = bets.Count,
+                totalRefunded
             });
 
             await db.SaveChangesAsync(token);

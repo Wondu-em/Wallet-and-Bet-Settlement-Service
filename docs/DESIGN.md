@@ -6,9 +6,11 @@ First measure where time is spent and load-test the PostgreSQL transaction path.
 event transactions short and retain row-level locking for correctness. If a single event escrow
 becomes a hot row, shard its escrow into a fixed set of subaccounts and aggregate them for
 settlement. For sustained higher write volume, consider partitioning ledger history, a connection
-pooler, and read replicas for read-only queries. Large settlements can move to an outbox-backed,
-resumable worker with explicit per-event progress; that changes the current single-transaction
-atomicity model and needs reconciliation and recovery tests before adoption.
+pooler, and read replicas for read-only queries. The transactional outbox currently records
+state-change events atomically and its worker logs claimed event ids and types; add a broker
+adapter and consumer idempotency before relying on external delivery. Large settlements can move
+to an outbox-backed, resumable worker with explicit per-event progress; that changes the current
+single-transaction atomicity model and needs reconciliation and recovery tests before adoption.
 
 ## Reconciling an external provider
 

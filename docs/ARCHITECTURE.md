@@ -210,7 +210,7 @@ Supporting tables (not drawn above for readability):
 | `webhook_deliveries` | Raw inbound webhooks and processing result | `UNIQUE (provider_event_id)` |
 | `provider_deposits` | Deposit state keyed by provider reference | `UNIQUE (provider_reference)`; status `Pending → Confirmed / Failed` |
 | `audit_log` | Who did what, when | Append-only; `actor_id, action, entity_type, entity_id, data jsonb, correlation_id, at` |
-| `outbox_messages` *(bonus)* | Reliable event publishing | Written in the business transaction |
+| `outbox_messages` *(bonus)* | Durable event publishing queue | Written in the business transaction; claimed in batches with `FOR UPDATE SKIP LOCKED` |
 
 ### 5.2 Database-enforced invariants
 
@@ -537,7 +537,7 @@ Conventions:
 |---|---|---|
 | **Ledger integrity check** | Hosted service, daily: asserts `SUM(debits) = SUM(credits)` globally, cached balance = ledger-derived balance per account, every `EventEscrow` of a settled/voided event is 0. Emits a metric and an error log on failure. | High (bonus) |
 | **Reconciliation job** | Compares `provider_deposits` / webhook deliveries against the simulated provider's report; writes discrepancies to an exceptions table. | Medium (bonus) |
-| **Outbox publisher** | Reads `outbox_messages` written in business transactions and publishes events (logged in this scope). | Medium (bonus) |
+| **Outbox publisher** | Polls pending `outbox_messages`, claims them with `FOR UPDATE SKIP LOCKED`, and logs event id/type before marking them processed. Failed batches remain pending for retry. This scope has no external broker adapter. | Medium (bonus, implemented) |
 | **Structured logging** | Serilog JSON logs with correlation id, user id and entity ids; money amounts logged, secrets never. | High |
 | **Metrics** | Request latency, bet success/failure counts, idempotent replays, webhook signature failures, lock wait times, integrity-check result. | Medium |
 | **Health checks** | `/health/live` and `/health/ready` (database connectivity). | High |

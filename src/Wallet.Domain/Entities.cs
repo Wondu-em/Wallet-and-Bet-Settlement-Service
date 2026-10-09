@@ -145,3 +145,13 @@ public class AuditLog
     public string? CorrelationId { get; set; }
     public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
 }
+
+public class OutboxMessage
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string Type { get; set; } = "";
+    public string Payload { get; set; } = "{}";
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+    public DateTimeOffset? ProcessedAt { get; set; }
+    public int Attempts { get; set; }
+}

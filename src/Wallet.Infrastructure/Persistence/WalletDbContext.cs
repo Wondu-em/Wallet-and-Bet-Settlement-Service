@@ -19,6 +19,7 @@ public class WalletDbContext(DbContextOptions<WalletDbContext> options) : DbCont
     public DbSet<WebhookDelivery> WebhookDeliveries => Set<WebhookDelivery>();
     public DbSet<ProviderDeposit> ProviderDeposits => Set<ProviderDeposit>();
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+    public DbSet<OutboxMessage> OutboxMessages => Set<OutboxMessage>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -169,6 +170,15 @@ public class WalletDbContext(DbContextOptions<WalletDbContext> options) : DbCont
             e.Property(x => x.CorrelationId).HasMaxLength(100);
             e.HasIndex(x => new { x.EntityType, x.EntityId });
             e.HasIndex(x => x.At);
+        });
+
+        b.Entity<OutboxMessage>(e =>
+        {
+            e.ToTable("outbox_messages", t => t.HasCheckConstraint("ck_outbox_messages_attempts_non_negative", "attempts >= 0"));
+            e.HasKey(x => x.Id);
+            e.Property(x => x.Type).HasMaxLength(200).IsRequired();
+            e.Property(x => x.Payload).HasColumnType("jsonb").IsRequired();
+            e.HasIndex(x => new { x.ProcessedAt, x.CreatedAt });
         });
 
         // snake_case column names (OddsBp -> odds_bp)

@@ -3,12 +3,17 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Wallet.Application.Audit;
 using Wallet.Application.Auth;
+using Wallet.Application.Outbox;
 using Wallet.Domain;
 using Wallet.Infrastructure.Persistence;
 
 namespace Wallet.Infrastructure.Services;
 
-public sealed class AuthService(WalletDbContext db, IPasswordHasher hasher, IAuditWriter audit) : IAuthService
+public sealed class AuthService(
+    WalletDbContext db,
+    IPasswordHasher hasher,
+    IAuditWriter audit,
+    IOutboxWriter outbox) : IAuthService
 {
     public async Task<AuthenticatedUser> RegisterAsync(string email, string password, CancellationToken ct = default)
     {
@@ -27,6 +32,7 @@ public sealed class AuthService(WalletDbContext db, IPasswordHasher hasher, IAud
         db.Users.Add(user);
         db.Accounts.Add(new Account { Type = AccountType.UserWallet, OwnerUserId = user.Id });
         audit.Add(user.Id, "user.register", "user", user.Id.ToString(), new { email });
+        outbox.Add("user.registered", new { userId = user.Id, email = user.Email, role = user.Role });
 
         try
         {

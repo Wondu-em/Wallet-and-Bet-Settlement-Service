@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Wallet.Application.Audit;
 using Wallet.Application.Ledger;
+using Wallet.Application.Outbox;
 using Wallet.Application.Wallets;
 using Wallet.Domain;
 using Wallet.Infrastructure.Persistence;
@@ -11,7 +12,8 @@ public sealed class WalletService(
     WalletDbContext db,
     ILedgerService ledger,
     ITransactionRunner runner,
-    IAuditWriter audit) : IWalletService
+    IAuditWriter audit,
+    IOutboxWriter outbox) : IWalletService
 {
     public async Task<WalletBalanceDto> GetBalanceAsync(Guid userId, CancellationToken ct = default)
     {
@@ -28,6 +30,7 @@ public sealed class WalletService(
 
             var txId = await ledger.PostAsync(Postings.Deposit(wallet.Id, amount, "deposit", reference), token);
             audit.Add(userId, "wallet.deposit", "ledger_transaction", txId.ToString(), new { amount });
+            outbox.Add("wallet.deposit.completed", new { userId, transactionId = txId, amount });
             await db.SaveChangesAsync(token);
 
             return new MoneyMovementDto(txId, amount, await ReadBalanceAsync(wallet.Id, token));
@@ -43,6 +46,7 @@ public sealed class WalletService(
             // The ledger locks the wallet row and rejects the posting if funds are insufficient.
             var txId = await ledger.PostAsync(Postings.Withdraw(wallet.Id, amount, "withdrawal", reference), token);
             audit.Add(userId, "wallet.withdraw", "ledger_transaction", txId.ToString(), new { amount });
+            outbox.Add("wallet.withdrawal.completed", new { userId, transactionId = txId, amount });
             await db.SaveChangesAsync(token);
 
             return new MoneyMovementDto(txId, amount, await ReadBalanceAsync(wallet.Id, token));

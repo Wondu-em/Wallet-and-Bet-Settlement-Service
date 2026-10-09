@@ -2,13 +2,18 @@ using Microsoft.EntityFrameworkCore;
 using Wallet.Application.Audit;
 using Wallet.Application.Events;
 using Wallet.Application.Ledger;
+using Wallet.Application.Outbox;
 using Wallet.Application.Wallets;
 using Wallet.Domain;
 using Wallet.Infrastructure.Persistence;
 
 namespace Wallet.Infrastructure.Services;
 
-public sealed class EventService(WalletDbContext db, ITransactionRunner runner, IAuditWriter audit) : IEventService
+public sealed class EventService(
+    WalletDbContext db,
+    ITransactionRunner runner,
+    IAuditWriter audit,
+    IOutboxWriter outbox) : IEventService
 {
     public async Task<EventDto> CreateAsync(
         Guid adminId, string title, IReadOnlyList<OutcomeInput> outcomes, CancellationToken ct = default)
@@ -29,6 +34,13 @@ public sealed class EventService(WalletDbContext db, ITransactionRunner runner, 
         });
         audit.Add(adminId, "event.create", "event", ev.Id.ToString(),
             new { title, outcomes = ev.Outcomes.Select(o => new { o.Name, o.OddsBp }) });
+        outbox.Add("event.created", new
+        {
+            eventId = ev.Id,
+            adminId,
+            title,
+            outcomes = ev.Outcomes.Select(o => new { outcomeId = o.Id, o.Name, o.OddsBp })
+        });
 
         await db.SaveChangesAsync(ct);   // one implicit transaction: escrow + event + outcomes + history + audit
         return EventMapping.ToDto(ev);
@@ -53,6 +65,7 @@ public sealed class EventService(WalletDbContext db, ITransactionRunner runner, 
                         ActorId = adminId, Reason = "closed for betting"
                     });
                     audit.Add(adminId, "event.close", "event", ev.Id.ToString());
+                    outbox.Add("event.closed", new { eventId = ev.Id, adminId });
                     await db.SaveChangesAsync(token);
                     break;
 
